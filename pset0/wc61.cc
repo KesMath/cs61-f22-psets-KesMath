@@ -13,7 +13,7 @@ int main() {
     char* buffer = (char*) calloc(1, sizeof(char));
     while(fread(buffer, sizeof(char), 1 , stdin) == 1){
         byte_cout++;
-        //TODO: to get word count, we can iterate 
+        //TODO: to get word count, we can create some consumer that ingests a number of characters and increments word counter by 1 when whitespace is detected 
         if(strcmp(buffer, NEWLINE) == 0){
             line_cout++;
         }
