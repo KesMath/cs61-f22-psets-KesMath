@@ -14,12 +14,12 @@ int main() {
             alpha_cout++;
         }
         else{
-            if(strcmp(buffer, NEWLINE) == 0){
-                line_cout++;
-            }
-            else if(isspace(*buffer) && alpha_cout > 0){
+            if(isspace(*buffer) && alpha_cout > 0){
                 word_cout++;
                 alpha_cout = 0;
+            }
+            if(strcmp(buffer, NEWLINE) == 0){
+                    line_cout++;
             }
         }
         byte_cout++;    
