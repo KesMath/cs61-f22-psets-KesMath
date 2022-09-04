@@ -2,6 +2,13 @@
 #include <cassert>
 #include <cstdio>
 
+int strlen(char *s){
+    int cout = 0;
+    while(s[cout] != '\0'){
+        cout++;
+    }
+    return cout;
+}
 //TODO: replace strlen() lib function with custom version given that this exercise is suppose to simulate a lib call that has no ref to other lib
 char* mystrstr(const char* s1, const char* s2) {
     // If s2 or needle points to a string with zero length, the function shall return s1.
