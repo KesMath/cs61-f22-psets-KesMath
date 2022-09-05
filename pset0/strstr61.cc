@@ -25,6 +25,9 @@ char* mystrstr(const char* s1, const char* s2) {
         return nullptr;
     }
     //PSEUDO for CHECKING FIRST OCCURRENCE:
+    // for every char in needle, check char in haystack
+    // if first char found in haystack, we check if every subsequent char in needle == char in haystack
+    // if all match, return pointer to first char, else return nullptr
     return nullptr;
 
 }
