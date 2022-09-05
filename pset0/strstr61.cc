@@ -2,7 +2,9 @@
 #include <cassert>
 #include <cstdio>
 
-int strlen(char *s){
+using namespace std;
+
+int strlen61(const char *s){
     int cout = 0;
     while(s[cout] != '\0'){
         cout++;
@@ -12,22 +14,37 @@ int strlen(char *s){
 //TODO: replace strlen() lib function with custom version given that this exercise is suppose to simulate a lib call that has no ref to other lib
 char* mystrstr(const char* s1, const char* s2) {
     // If s2 or needle points to a string with zero length, the function shall return s1.
-    if(strlen(s2) == 0){
+    if(strlen61(s2) == 0){
         return (char*) &s1[0]; //not sure if "const_cast" is safer practice
     }
 
     // Case when haystack is empty
-    if(strlen(s1) == 0){
+    if(strlen61(s1) == 0){
         return nullptr;
     }
     // Case when strlen(needle) > strlen(haystack) (implying the needle is a size of a haystack and vice-versa)
-    if(strlen(s2) > strlen(s1)){
+    if(strlen61(s2) > strlen61(s1)){
         return nullptr;
     }
     //PSEUDO for CHECKING FIRST OCCURRENCE:
     // for every char in needle, check char in haystack
     // if first char found in haystack, we check if every subsequent char in needle == char in haystack
     // if all match, return pointer to first char, else return nullptr
+    for(int i = 0; i < strlen61(s2); i++){
+        for(int j = 0; j < strlen61(s1); j++){
+            if(s2[i] == s1[j]){
+                // found a match in first char now we check if every subsequent char in needle == char in haystack
+                // if all subsequent chars match, then we return pointer from haystack
+                char* haystackPtr = (char*) &s2[i];
+                for(; i < strlen61(s2); i++){
+                    if(s2[i] != s1[i]){
+                        return nullptr;
+                    }
+                    return haystackPtr;
+                }
+            }
+        }
+    }
     return nullptr;
 
 }
