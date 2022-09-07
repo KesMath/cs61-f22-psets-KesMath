@@ -35,13 +35,13 @@ char* mystrstr(const char* s1, const char* s2) {
             if(s2[i] == s1[j]){
                 // found a match in first char now we check if every subsequent char in needle == char in haystack
                 // if all subsequent chars match, then we return pointer from haystack
-                char* haystackPtr = (char*) &s1[i];
-                for(; i < strlen61(s2); i++){
+                char* haystackPtr = (char*) &s1[j];
+                for(; i < strlen61(s2); i++, j++){
                     if(s2[i] != s1[j]){
                         return nullptr;
                     }
-                    return haystackPtr;
                 }
+                return haystackPtr;
             }
         }
     }
