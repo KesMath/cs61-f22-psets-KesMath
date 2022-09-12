@@ -19,6 +19,16 @@ struct m61_memory_buffer {
 
 static m61_memory_buffer default_buffer;
 
+static m61_statistics alloc_stats = {
+    .nactive = 0,
+    .active_size = 0,
+    .ntotal = 0,
+    .total_size = 0,
+    .nfail = 0,
+    .fail_size = 0,
+    .heap_min = 0,
+    .heap_max = 0
+};
 
 m61_memory_buffer::m61_memory_buffer() {
     void* buf = mmap(nullptr,    // Place the buffer at a random address
@@ -45,13 +55,19 @@ m61_memory_buffer::~m61_memory_buffer() {
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
-    // Your code here.      
+    alloc_stats.ntotal++;
+    alloc_stats.total_size += sz;
+
     if (default_buffer.pos + sz > default_buffer.size) {
         // Not enough space left in default buffer for allocation
+        alloc_stats.nfail++;
+        alloc_stats.fail_size += sz;
+        alloc_stats.ntotal--;
+        alloc_stats.total_size -= sz;
         return nullptr;
     }
-
     // Otherwise there is enough space; claim the next `sz` bytes
+    alloc_stats.nactive++;
     void* ptr = &default_buffer.buffer[default_buffer.pos];
     default_buffer.pos += sz;
     return ptr;
@@ -67,7 +83,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 void m61_free(void* ptr, const char* file, int line) {
     // avoid uninitialized variable warnings
     (void) ptr, (void) file, (void) line;
-    // Your code here. The handout code does nothing!
+    alloc_stats.nactive--;
 }
 
 
@@ -92,16 +108,7 @@ void* m61_calloc(size_t count, size_t sz, const char* file, int line) {
 ///    Return the current memory statistics.
 
 m61_statistics m61_get_statistics() {
-    m61_statistics stats;
-
-    //printf("sizeof stats: %li\n", sizeof(m61_statistics));
-    // fills in first 64 bytes of stats struct with value of 255 (or all bits set to 1)
-    // hence the first 6 attributes of statistics struct (since they're each 8 bytes) = 48 bytes
-    // get turned on... recall max value for a 8 bit integer is 255
-    // so max value of 8 byte number is 2^(8bits per byte * 8 byte) - 1 = 18446744073709551615
-    // other 16 bytes are for heap_max and heap_min
-    memset(&stats, 0, sizeof(m61_statistics));
-    return stats;
+    return alloc_stats;
 }
 
 
