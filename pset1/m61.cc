@@ -13,7 +13,9 @@ struct m61_memory_buffer {
     size_t pos = 0;
     size_t size = 8 << 20; /* 8 MiB */
 
+    //constructor
     m61_memory_buffer();
+    //deconstructor
     ~m61_memory_buffer();
 };
 
@@ -31,6 +33,11 @@ static m61_statistics alloc_stats = {
 };
 
 m61_memory_buffer::m61_memory_buffer() {
+    /*
+    mmap() function asks the kernel to create new virtual memory area,
+    preferably one that starts at address "nullptr" and map to a contiguous object
+    chunk of the object specified by file descriptor fd = -1 to the new area    
+    */
     void* buf = mmap(nullptr,    // Place the buffer at a random address
         this->size,              // Buffer should be 8 MiB big
         PROT_WRITE,              // We want to read and write the buffer
@@ -38,9 +45,16 @@ m61_memory_buffer::m61_memory_buffer() {
                                  // We want memory freshly allocated by the OS
     assert(buf != MAP_FAILED);
     this->buffer = (char*) buf;
+
+    // according to diagram 838 in textbook, I assume the smallest address is the value
+    // that's returned by mmap() sys call and largest address of that virtual memory block
+    // is that address returned from mmap() + the size
+    alloc_stats.heap_min = (uintptr_t) buf;
+    alloc_stats.heap_max = (uintptr_t) buf + this->size;
 }
 
 m61_memory_buffer::~m61_memory_buffer() {
+    //deletes the area starting at virtual address "this.buffer" and consisting of next "size" bytes 
     munmap(this->buffer, this->size);
 }
 
@@ -85,7 +99,9 @@ void* m61_malloc(size_t sz, const char* file, int line) {
 void m61_free(void* ptr, const char* file, int line) {
     // avoid uninitialized variable warnings
     (void) ptr, (void) file, (void) line;
-    alloc_stats.nactive--;
+    if(ptr != nullptr){
+        alloc_stats.nactive--;
+    }
 }
 
 
