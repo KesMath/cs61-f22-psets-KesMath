@@ -69,7 +69,9 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     // Otherwise there is enough space; claim the next `sz` bytes
     alloc_stats.nactive++;
     void* ptr = &default_buffer.buffer[default_buffer.pos];
-    default_buffer.pos += sz;
+    // address value returned by m61_malloc() must be evenly divisible by 16 ... this returns 8!
+    // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
+    default_buffer.pos += sz + 8;
     return ptr;
 }
 
