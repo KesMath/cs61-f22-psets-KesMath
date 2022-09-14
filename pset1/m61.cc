@@ -113,7 +113,11 @@ void m61_free(void* ptr, const char* file, int line) {
 ///    also return `nullptr` if `count == 0` or `size == 0`.
 
 void* m61_calloc(size_t count, size_t sz, const char* file, int line) {
-    // Your code here (to fix test019).
+    // check if result (i.e. y = a*b) is less than either of the factors which implies a wraparound occurred
+    if(sz * count < count || sz * count < sz){
+        alloc_stats.nfail++;
+        return nullptr;
+    }
     void* ptr = m61_malloc(count * sz, file, line);
     if (ptr) {
         memset(ptr, 0, count * sz);
