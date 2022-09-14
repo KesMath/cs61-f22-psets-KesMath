@@ -72,7 +72,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     alloc_stats.ntotal++;
     alloc_stats.total_size += sz;
 
-    if (default_buffer.pos + sz > default_buffer.size) {
+    if (default_buffer.pos + sz > default_buffer.size || sz == SIZE_MAX) {
         // Not enough space left in default buffer for allocation
         alloc_stats.nfail++;
         alloc_stats.fail_size += sz;

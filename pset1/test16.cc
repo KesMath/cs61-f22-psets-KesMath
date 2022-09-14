@@ -11,8 +11,11 @@ int main() {
     for (int i = 0; i != 5; ++i) {
         m61_free(ptrs[i]);
     }
+    //weird af ... confusingly prints as -1 but enters function as 2^64 - 1
     size_t very_large_size = SIZE_MAX;
+    //printf("Size about to be allocated: %li\n", very_large_size);
     void* garbage = m61_malloc(very_large_size);
+    //printf("garbage pointer: %p\n", garbage);
     assert(!garbage);
     m61_print_statistics();
 }
