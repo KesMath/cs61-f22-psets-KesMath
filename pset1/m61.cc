@@ -46,7 +46,9 @@ m61_memory_buffer::m61_memory_buffer() {
         MAP_ANON | MAP_PRIVATE, -1, 0);
                                  // We want memory freshly allocated by the OS
     assert(buf != MAP_FAILED);
-    this->buffer = (char*) buf;
+
+    //pointer to virtual memory returned from mmap() persists in buffer attribute of "m61_memory_buffer" struct
+    this->buffer = (char*) buf; 
 
     // according to diagram 838 in textbook, I assume the smallest address is the value
     // that's returned by mmap() sys call and largest address of that virtual memory block
@@ -86,7 +88,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     }
     // Otherwise there is enough space; claim the next `sz` bytes
     alloc_stats.nactive++;
-    void* ptr = &default_buffer.buffer[default_buffer.pos];
+    void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
+
     // address value returned by m61_malloc() must be evenly divisible by 16 ... this returns 8!
     // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
     default_buffer.pos += sz + 8;
@@ -108,10 +111,14 @@ void m61_free(void* ptr, const char* file, int line) {
         // how do we go about freeing ptr so that all memory in virtual buffer is not consumed??
         // before we go onto use maps etc, let's get basics downpack so we know what we're doing
         // we're not deleting the memory that is consumed by that pointer but in fact we're going to 
-        // "RE-RENT" or allow another pointer to occupy that space (even though garbage values may persist)
-        // (1)
-        // (2) We're going to decrement default_buffer.pos so we never hit our ceiling in this virtual buffer
-        // (which is heap_max or default_buffer.size) 
+        // "RE-RENT" or allow another pointer to occupy that space (even though garbage values from previous ptr may persist)
+        // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
+        // hit our ceiling in this virtual buffer (which is heap_max or default_buffer.size)
+        // that way, on subsequent malloc() call, we will be recycling memory
+
+        // we can only get away with this if we're allocating and freeing cyclically...
+        // this implementation will not pass if we call free on other pointers at various positions in 8MiB buffer
+        // in that case, we will need to keep track of them by ordered map!!! 
     }
 }
 
