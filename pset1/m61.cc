@@ -8,10 +8,12 @@
 #include <sys/mman.h>
 
 
+const uint16_t APPROX_KILOBYTE = (1 << 10) - 24; //1000 bytes
+
 struct m61_memory_buffer {
-    char* buffer;
+    char* buffer; // pointer reference to first byte in buffer
     size_t pos = 0;
-    size_t size = 8 << 20; /* 8 MiB */
+    size_t size = 8 << 20; /* 8 MiB ceiling of virtual memory*/
 
     //constructor
     m61_memory_buffer();
@@ -39,7 +41,7 @@ m61_memory_buffer::m61_memory_buffer() {
     chunk of the object specified by file descriptor fd = -1 to the new area    
     */
     void* buf = mmap(nullptr,    // Place the buffer at a random address
-        this->size,              // Buffer should be 8 MiB big
+        this->size,              // Buffer/Virtual Memory should be 8 MiB big or 2^23 = 8,388,608 bytes
         PROT_WRITE,              // We want to read and write the buffer
         MAP_ANON | MAP_PRIVATE, -1, 0);
                                  // We want memory freshly allocated by the OS
@@ -51,6 +53,8 @@ m61_memory_buffer::m61_memory_buffer() {
     // is that address returned from mmap() + the size
     alloc_stats.heap_min = (uintptr_t) buf;
     alloc_stats.heap_max = (uintptr_t) buf + this->size;
+    //printf("HEAP MIN: %li\n", alloc_stats.heap_min);
+    //printf("HEAP MAX: %li\n", alloc_stats.heap_max);
 }
 
 m61_memory_buffer::~m61_memory_buffer() {
@@ -101,6 +105,13 @@ void m61_free(void* ptr, const char* file, int line) {
     (void) ptr, (void) file, (void) line;
     if(ptr != nullptr){
         alloc_stats.nactive--;
+        // how do we go about freeing ptr so that all memory in virtual buffer is not consumed??
+        // before we go onto use maps etc, let's get basics downpack so we know what we're doing
+        // we're not deleting the memory that is consumed by that pointer but in fact we're going to 
+        // "RE-RENT" or allow another pointer to occupy that space (even though garbage values may persist)
+        // (1)
+        // (2) We're going to decrement default_buffer.pos so we never hit our ceiling in this virtual buffer
+        // (which is heap_max or default_buffer.size) 
     }
 }
 
