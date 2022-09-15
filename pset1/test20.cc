@@ -5,17 +5,17 @@
 // Check for memory reuse: at most one active allocation.
 
 int main() {
-    // for (int i = 0; i != 10000; ++i) {
-    //     void* ptr = m61_malloc(1000);
-    //     //assert(ptr);
-    //     m61_free(ptr);
-    // }
+    for (int i = 0; i != 10000; ++i) {
+        void* ptr = m61_malloc(1000);
+        assert(ptr);
+        m61_free(ptr);
+    }
 
-    void* ptr0 = m61_malloc(1000);
-    void* ptr1 = m61_malloc(1000);
-    printf("ptr0: %li\n", (uintptr_t) ptr0);
-    printf("ptr1: %li\n", (uintptr_t) ptr1);
-    printf("ptr difference: %li\n", (uintptr_t) ptr1 - (uintptr_t) ptr0);
+    //void* ptr0 = m61_malloc(1000);
+    //void* ptr1 = m61_malloc(1000);
+    //printf("ptr0: %li\n", (uintptr_t) ptr0);
+    //printf("ptr1: %li\n", (uintptr_t) ptr1);
+    //printf("ptr difference: %li\n", (uintptr_t) ptr1 - (uintptr_t) ptr0);
     m61_print_statistics();
 }
 

@@ -8,7 +8,7 @@
 #include <sys/mman.h>
 
 
-const uint16_t APPROX_KILOBYTE = (1 << 10) - 24; //1000 bytes
+const uint16_t APPROX_KILOBYTE = (1 << 10) - 16; //1008 bytes
 
 struct m61_memory_buffer {
     char* buffer; // pointer reference to first byte in buffer
@@ -115,7 +115,7 @@ void m61_free(void* ptr, const char* file, int line) {
         // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
         // hit our ceiling in this virtual buffer (which is heap_max or default_buffer.size)
         // that way, on subsequent malloc() call, we will be recycling memory
-
+        default_buffer.pos = 0;
         // we can only get away with this if we're allocating and freeing cyclically...
         // this implementation will not pass if we call free on other pointers at various positions in 8MiB buffer
         // in that case, we will need to keep track of them by ordered map!!! 
