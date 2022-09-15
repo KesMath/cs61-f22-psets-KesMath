@@ -1,4 +1,5 @@
 #include "m61.hh"
+#include <map>
 #include <cstdlib>
 #include <cstddef>
 #include <cstring>
@@ -6,9 +7,6 @@
 #include <cinttypes>
 #include <cassert>
 #include <sys/mman.h>
-
-
-const uint16_t APPROX_KILOBYTE = (1 << 10) - 16; //1008 bytes
 
 struct m61_memory_buffer {
     char* buffer; // pointer reference to first byte in buffer
@@ -34,6 +32,8 @@ static m61_statistics alloc_stats = {
     .heap_max = 0
 };
 
+std::map<void*, size_t> active_ptrs;
+
 m61_memory_buffer::m61_memory_buffer() {
     /*
     mmap() function asks the kernel to create new virtual memory area,
@@ -55,16 +55,12 @@ m61_memory_buffer::m61_memory_buffer() {
     // is that address returned from mmap() + the size
     alloc_stats.heap_min = (uintptr_t) buf;
     alloc_stats.heap_max = (uintptr_t) buf + this->size;
-    //printf("HEAP MIN: %li\n", alloc_stats.heap_min);
-    //printf("HEAP MAX: %li\n", alloc_stats.heap_max);
 }
 
 m61_memory_buffer::~m61_memory_buffer() {
     //deletes the area starting at virtual address "this.buffer" and consisting of next "size" bytes 
     munmap(this->buffer, this->size);
 }
-
-
 
 
 /// m61_malloc(sz, file, line)
@@ -93,6 +89,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     // address value returned by m61_malloc() must be evenly divisible by 16 ... this returns 8!
     // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
     default_buffer.pos += sz + 8;
+    active_ptrs.insert({ptr, sz + 8});
     return ptr;
 }
 
@@ -109,16 +106,23 @@ void m61_free(void* ptr, const char* file, int line) {
     if(ptr != nullptr){
         alloc_stats.nactive--;
         // how do we go about freeing ptr so that all memory in virtual buffer is not consumed??
-        // before we go onto use maps etc, let's get basics downpack so we know what we're doing
-        // we're not deleting the memory that is consumed by that pointer but in fact we're going to 
         // "RE-RENT" or allow another pointer to occupy that space (even though garbage values from previous ptr may persist)
         // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
         // hit our ceiling in this virtual buffer (which is heap_max or default_buffer.size)
         // that way, on subsequent malloc() call, we will be recycling memory
-        default_buffer.pos = 0;
-        // we can only get away with this if we're allocating and freeing cyclically...
-        // this implementation will not pass if we call free on other pointers at various positions in 8MiB buffer
-        // in that case, we will need to keep track of them by ordered map!!! 
+
+        // ===================================
+        // FIXME: if we move internal buffer attributes around, we may be overwriting other pointer memory regions next time we malloc()
+        // we need to find enough free space in memory before malloc() as right now with this approach, we can have alot of block gaps
+        // after we find enough memory to insert new allocations, then we can work on coalescing
+        auto it = active_ptrs.find(ptr);
+        if(it != active_ptrs.end()){
+            default_buffer.pos -= it->second;
+            //TODO: sanity check test6 for alignment even tho it passes
+            void* outerBoundOfPreviousPtr = &default_buffer.buffer[default_buffer.pos + 1]; //need to increment by 1 as to not collide with previous ptr buffer boundary
+            default_buffer.buffer = (char*) outerBoundOfPreviousPtr; 
+        }
+        // ===================================
     }
 }
 
