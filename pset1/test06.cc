@@ -23,6 +23,6 @@ int main() {
     // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
     assert((uintptr_t) ptr2 % alignof(std::max_align_t) == 0);
 
-    //m61_free(ptr);
+    m61_free(ptr);
     m61_free(ptr2);
 }

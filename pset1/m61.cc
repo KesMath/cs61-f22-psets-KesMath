@@ -118,7 +118,7 @@ void m61_free(void* ptr, const char* file, int line) {
         auto it = active_ptrs.find(ptr);
         if(it != active_ptrs.end()){
             default_buffer.pos -= it->second;
-            //TODO: sanity check test6 for alignment even tho it passes
+            //FIXME: allocation alignment fails after calling free() on a previous ptr!!
             void* outerBoundOfPreviousPtr = &default_buffer.buffer[default_buffer.pos + 1]; //need to increment by 1 as to not collide with previous ptr buffer boundary
             default_buffer.buffer = (char*) outerBoundOfPreviousPtr; 
         }
