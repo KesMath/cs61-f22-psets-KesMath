@@ -32,6 +32,7 @@ static m61_statistics alloc_stats = {
     .heap_max = 0
 };
 
+uint8_t ALIGNMENT_PADDING = 8;
 // ordered map for tracking: {pointers to live allocations => bytes of reserved memory}
 std::map<void*, size_t> active_ptrs;
 
@@ -75,16 +76,23 @@ m61_memory_buffer::~m61_memory_buffer() {
 void* m61_find_free_space(size_t sz){
     // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
     if (sz <= default_buffer.size - default_buffer.pos) {
-        void* ptr = &default_buffer.buffer[default_buffer.pos];
-        default_buffer.pos += sz + 8; //maintain alignment
+        void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
+
+        // address value returned by m61_malloc() must be evenly divisible by 16
+        default_buffer.pos += sz + ALIGNMENT_PADDING;
+        active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
         return ptr;
     }
     // scans free_ptr map and find an available buffer zone that's less than or equal to size
     for (auto it = free_ptrs.begin(); it != free_ptrs.end(); ++it) {
-        // not optimal approach as we can potentially underutilize that free region
+        // do we consider alignment here in this conditional??
         if(sz <= it->second){
+            // TODO: we dont update default_buffer.pos here
+            // cause on a subsequent call to malloc() we want to consider (distance from ceiling to current pos)
             void* ptr = it->first;
             free_ptrs.erase(ptr);
+
+            active_ptrs.insert({ptr, sz});
             return ptr;
         }
     }
@@ -113,14 +121,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     }
     // Otherwise there is enough space; claim the next `sz` bytes
     alloc_stats.nactive++;
-    void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
 
-    // address value returned by m61_malloc() must be evenly divisible by 16 ... this returns 8!
-    // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
-    default_buffer.pos += sz + 8;
-    active_ptrs.insert({ptr, sz + 8});
-    //printf("VIRTUAL_MEMORY_CURRENT_PTR %p\n", default_buffer.buffer);
-    return ptr;
+    return m61_find_free_space(sz);
 }
 
 
@@ -142,19 +144,14 @@ void m61_free(void* ptr, const char* file, int line) {
         // that way, on subsequent malloc() call, we will be recycling memory
 
         // ===================================
-        // FIXME: if we move internal buffer attributes around, we may be overwriting other pointer memory regions next time we malloc()
-        // we need to find enough free space in memory before malloc() as right now with this approach, we can have alot of block gaps
-        // after we find enough memory to insert new allocations, then we can work on coalescing
+
         auto it = active_ptrs.find(ptr);
         if(it != active_ptrs.end()){
             default_buffer.pos -= it->second;
-            //FIXME: allocation alignment fails after calling free() on a previous ptr!!
-            // not sure if we're preserving alignment after subsequent free() calls??
-            void* outerBoundOfPreviousPtr = &default_buffer.buffer[default_buffer.pos + 1]; //need to increment by 1 as to not collide with previous ptr buffer boundary
-            default_buffer.buffer = (char*) outerBoundOfPreviousPtr;
 
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
-            free_ptrs.insert({ptr, it->second}); 
+            free_ptrs.insert({ptr, it->second});
+            active_ptrs.erase(ptr);
         }
         // ===================================
     }
