@@ -32,7 +32,11 @@ static m61_statistics alloc_stats = {
     .heap_max = 0
 };
 
+// ordered map for tracking: {pointers to live allocations => bytes of reserved memory}
 std::map<void*, size_t> active_ptrs;
+
+// ordered map for tracking: {pointers to free allocations => bytes of freed memory}
+std::map<void*, size_t> free_ptrs;
 
 m61_memory_buffer::m61_memory_buffer() {
     /*
@@ -48,18 +52,43 @@ m61_memory_buffer::m61_memory_buffer() {
     assert(buf != MAP_FAILED);
 
     //pointer to virtual memory returned from mmap() persists in buffer attribute of "m61_memory_buffer" struct
-    this->buffer = (char*) buf; 
+    this->buffer = (char*) buf;
+    //printf("Buffer pointer %li\n", (uintptr_t) this->buffer); 
 
     // according to diagram 838 in textbook, I assume the smallest address is the value
     // that's returned by mmap() sys call and largest address of that virtual memory block
     // is that address returned from mmap() + the size
     alloc_stats.heap_min = (uintptr_t) buf;
     alloc_stats.heap_max = (uintptr_t) buf + this->size;
+    //printf("HEAP MIN: %li\n", alloc_stats.heap_min);
+    //printf("HEAP MAX: %li\n", alloc_stats.heap_max);
 }
 
 m61_memory_buffer::~m61_memory_buffer() {
     //deletes the area starting at virtual address "this.buffer" and consisting of next "size" bytes 
     munmap(this->buffer, this->size);
+}
+
+// helper function for m61_malloc()
+// always checks diff(heap ceiling - default buffer.current_pos) first to see if an allocation reside there first
+// otherwise, checks free regions of memory
+void* m61_find_free_space(size_t sz){
+    // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
+    if (sz <= default_buffer.size - default_buffer.pos) {
+        void* ptr = &default_buffer.buffer[default_buffer.pos];
+        default_buffer.pos += sz + 8; //maintain alignment
+        return ptr;
+    }
+    // scans free_ptr map and find an available buffer zone that's less than or equal to size
+    for (auto it = free_ptrs.begin(); it != free_ptrs.end(); ++it) {
+        // not optimal approach as we can potentially underutilize that free region
+        if(sz <= it->second){
+            void* ptr = it->first;
+            free_ptrs.erase(ptr);
+            return ptr;
+        }
+    }
+    return nullptr;
 }
 
 
@@ -90,6 +119,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     // pointer address must be shifted or added by 8 in order for it to be divisible by 16!
     default_buffer.pos += sz + 8;
     active_ptrs.insert({ptr, sz + 8});
+    //printf("VIRTUAL_MEMORY_CURRENT_PTR %p\n", default_buffer.buffer);
     return ptr;
 }
 
@@ -119,8 +149,12 @@ void m61_free(void* ptr, const char* file, int line) {
         if(it != active_ptrs.end()){
             default_buffer.pos -= it->second;
             //FIXME: allocation alignment fails after calling free() on a previous ptr!!
+            // not sure if we're preserving alignment after subsequent free() calls??
             void* outerBoundOfPreviousPtr = &default_buffer.buffer[default_buffer.pos + 1]; //need to increment by 1 as to not collide with previous ptr buffer boundary
-            default_buffer.buffer = (char*) outerBoundOfPreviousPtr; 
+            default_buffer.buffer = (char*) outerBoundOfPreviousPtr;
+
+            //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
+            free_ptrs.insert({ptr, it->second}); 
         }
         // ===================================
     }
