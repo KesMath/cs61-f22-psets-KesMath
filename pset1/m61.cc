@@ -33,6 +33,18 @@ static m61_statistics alloc_stats = {
 };
 
 uint8_t ALIGNMENT_PADDING = 8;
+
+// uintptr_t getPadding(void* ptr, size_t sz){
+//     size_t padding = 0;
+//     //printf("(uintptr_t) ptr: %li\n",(uintptr_t) ptr);
+//     if(((uintptr_t) ptr + sz) % 16 != 0){
+//         padding = 16 - ((uintptr_t) ptr % 16);
+//     }
+//     //printf("padding: %li\n", padding);
+//     //printf("align of: %li\n", alignof(std::max_align_t));
+//     return (uintptr_t) ptr + padding + sz;
+// }
+
 // ordered map for tracking: {pointers to live allocations => bytes of reserved memory}
 std::map<void*, size_t> active_ptrs;
 
@@ -81,6 +93,7 @@ void* m61_find_free_space(size_t sz){
         // address value returned by m61_malloc() must be evenly divisible by 16
         default_buffer.pos += sz + ALIGNMENT_PADDING;
         active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
+        alloc_stats.active_size += sz + ALIGNMENT_PADDING;
         return ptr;
     }
     // scans free_ptr map and find an available buffer zone that's less than or equal to size
@@ -92,7 +105,8 @@ void* m61_find_free_space(size_t sz){
             void* ptr = it->first;
             free_ptrs.erase(ptr);
 
-            active_ptrs.insert({ptr, sz});
+            active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
+            alloc_stats.active_size += sz + ALIGNMENT_PADDING;
             return ptr;
         }
     }
@@ -152,6 +166,7 @@ void m61_free(void* ptr, const char* file, int line) {
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
             free_ptrs.insert({ptr, it->second});
             active_ptrs.erase(ptr);
+            alloc_stats.active_size -= it->second;
         }
         // ===================================
     }
