@@ -139,6 +139,48 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     return m61_find_free_space(sz);
 }
 
+bool can_coalesce_up(void* ptr){
+    auto it = free_ptrs.find(ptr);
+    assert(it != free_ptrs.end());
+
+    auto nextBlock = it;
+    nextBlock++;
+
+    if(nextBlock == free_ptrs.end()){
+        return false;
+    }
+
+    assert(free_ptrs.find(nextBlock->first) != free_ptrs.end());
+
+    return ((uintptr_t) it->first) + it->second == (uintptr_t) nextBlock->first;
+}
+
+bool can_coalesce_down(void* ptr){
+    auto it = free_ptrs.find(ptr);
+    assert(it != free_ptrs.end());
+
+    //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
+    if(it == free_ptrs.begin()){
+        return false;
+    }
+
+    auto previousBlock = it;
+    previousBlock--;
+    
+    assert(free_ptrs.find(previousBlock->first) != free_ptrs.end());
+    if((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first){
+        return true;
+    }
+    return false;
+}
+
+void coalesce_up(void* ptr){
+
+}
+
+void coalesce_down(void* ptr){
+
+}
 
 /// m61_free(ptr, file, line)
 ///    Frees the memory allocation pointed to by `ptr`. If `ptr == nullptr`,
@@ -161,6 +203,7 @@ void m61_free(void* ptr, const char* file, int line) {
 
         auto it = active_ptrs.find(ptr);
         if(it != active_ptrs.end()){
+            // add coaleascing logic and remove line below!
             default_buffer.pos -= it->second;
 
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
