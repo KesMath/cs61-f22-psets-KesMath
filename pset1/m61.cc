@@ -51,6 +51,8 @@ std::map<void*, size_t> active_ptrs;
 // ordered map for tracking: {pointers to free allocations => bytes of freed memory}
 std::map<void*, size_t> free_ptrs;
 
+using freemap_iter = std::map<void*, size_t>::iterator;
+
 m61_memory_buffer::m61_memory_buffer() {
     /*
     mmap() function asks the kernel to create new virtual memory area,
@@ -139,8 +141,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     return m61_find_free_space(sz);
 }
 
-bool can_coalesce_up(void* ptr){
-    auto it = free_ptrs.find(ptr);
+bool can_coalesce_up(freemap_iter it){
     assert(it != free_ptrs.end());
 
     auto nextBlock = it;
@@ -150,15 +151,17 @@ bool can_coalesce_up(void* ptr){
         return false;
     }
 
-    assert(free_ptrs.find(nextBlock->first) != free_ptrs.end());
+    // cannot coalesce if there's no next entry in free_ptrs map!
+    if(free_ptrs.find(nextBlock->first) == free_ptrs.end()){
+        return false;
+    }
 
     return ((uintptr_t) it->first) + it->second == (uintptr_t) nextBlock->first;
 }
 
-bool can_coalesce_down(void* ptr){
-    auto it = free_ptrs.find(ptr);
+bool can_coalesce_down(freemap_iter it){
     assert(it != free_ptrs.end());
-
+    
     //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
     if(it == free_ptrs.begin()){
         return false;
@@ -167,16 +170,16 @@ bool can_coalesce_down(void* ptr){
     auto previousBlock = it;
     previousBlock--;
     
-    assert(free_ptrs.find(previousBlock->first) != free_ptrs.end());
-    if((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first){
-        return true;
+    // cannot coalesce if there's no previous entry in free_ptrs map!
+    if(free_ptrs.find(previousBlock->first) == free_ptrs.end()){
+        return false;
     }
-    return false;
+
+    return ((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first);
 }
 
-void coalesce_up(void* ptr){
-    if(can_coalesce_up(ptr)){
-        auto it = free_ptrs.find(ptr);
+void coalesce_up(freemap_iter it){
+    if(can_coalesce_up(it)){
         auto next = it;
         next++;
         // consolidate free blocks by adding next value's memory allocation to current block
@@ -191,9 +194,8 @@ void coalesce_up(void* ptr){
 
 }
 
-void coalesce_down(void* ptr){
-    if(can_coalesce_down(ptr)){
-        auto it = free_ptrs.find(ptr);
+void coalesce_down(freemap_iter it){
+    if(can_coalesce_down(it)){
         auto previous = it;
         previous--;
         // consolidate free blocks by adding current value's memory allocation to previous block
@@ -229,18 +231,17 @@ void m61_free(void* ptr, const char* file, int line) {
 
         auto it = active_ptrs.find(ptr);
         if(it != active_ptrs.end()){
-            // add coaleascing logic and remove line below!
-            // default_buffer.pos -= it->second;
+            free_ptrs.insert({ptr, it->second});
 
             // downshifting iterator cursor as much as possible
             // so we can maximally coalesce up
-            while(can_coalesce_down(ptr)){
-                coalesce_down(ptr);
+            while(can_coalesce_down(it)){
+                coalesce_down(it);
                 it--; 
             }
 
-            while(can_coalesce_up(ptr)){
-                coalesce_up(ptr);
+            while(can_coalesce_up(it)){
+                coalesce_up(it);
             }
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
             active_ptrs.erase(ptr);
