@@ -243,7 +243,6 @@ void m61_free(void* ptr, const char* file, int line) {
                 coalesce_up(ptr);
             }
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
-            free_ptrs.insert({ptr, it->second});
             active_ptrs.erase(ptr);
             alloc_stats.active_size -= it->second;
         }
