@@ -175,10 +175,36 @@ bool can_coalesce_down(void* ptr){
 }
 
 void coalesce_up(void* ptr){
+    if(can_coalesce_up(ptr)){
+        auto it = free_ptrs.find(ptr);
+        auto next = it;
+        next++;
+        // consolidate free blocks by adding next value's memory allocation to current block
+        it->second += next->second;
+
+        // update free ptrs map to contain consolidated buffer
+        free_ptrs.insert_or_assign(it->first, it->second);
+
+        // erasing stale pointer
+        free_ptrs.erase(next->first);
+    }
 
 }
 
 void coalesce_down(void* ptr){
+    if(can_coalesce_down(ptr)){
+        auto it = free_ptrs.find(ptr);
+        auto previous = it;
+        previous--;
+        // consolidate free blocks by adding current value's memory allocation to previous block
+        previous->second += it->second;
+        
+        // update free ptrs map to contain consolidated buffer
+        free_ptrs.insert_or_assign(previous->first, previous->second);
+
+        // erasing stale pointer
+        free_ptrs.erase(it->first);
+    }
 
 }
 
