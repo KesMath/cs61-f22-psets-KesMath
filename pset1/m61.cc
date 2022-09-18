@@ -230,8 +230,18 @@ void m61_free(void* ptr, const char* file, int line) {
         auto it = active_ptrs.find(ptr);
         if(it != active_ptrs.end()){
             // add coaleascing logic and remove line below!
-            default_buffer.pos -= it->second;
+            // default_buffer.pos -= it->second;
 
+            // downshifting iterator cursor as much as possible
+            // so we can maximally coalesce up
+            while(can_coalesce_down(ptr)){
+                coalesce_down(ptr);
+                it--; 
+            }
+
+            while(can_coalesce_up(ptr)){
+                coalesce_up(ptr);
+            }
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
             free_ptrs.insert({ptr, it->second});
             active_ptrs.erase(ptr);
