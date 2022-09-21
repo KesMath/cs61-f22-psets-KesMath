@@ -8,6 +8,24 @@
 #include <cassert>
 #include <sys/mman.h>
 
+// ordered map for tracking: {pointers to live allocations => bytes of reserved memory}
+std::map<void*, size_t> active_ptrs;
+
+// ordered map for tracking: {pointers to free allocations => bytes of freed memory}
+std::map<void*, size_t> free_ptrs;
+
+using freemap_iter = std::map<void*, size_t>::iterator;
+
+void coalesce_up(freemap_iter it);
+bool can_coalesce_up(freemap_iter it);
+
+void coalesce_down(freemap_iter it);
+bool can_coalesce_down(freemap_iter it);
+
+void consolidate_free_memory_regions(freemap_iter it);
+
+void* m61_find_free_space(size_t sz);
+
 struct m61_memory_buffer {
     char* buffer; // pointer reference to first byte in buffer
     size_t pos = 0;
@@ -42,16 +60,8 @@ uint8_t ALIGNMENT_PADDING = 8;
 //     }
 //     //printf("padding: %li\n", padding);
 //     //printf("align of: %li\n", alignof(std::max_align_t));
-//     return (uintptr_t) ptr + padding + sz;
+//     return padding;
 // }
-
-// ordered map for tracking: {pointers to live allocations => bytes of reserved memory}
-std::map<void*, size_t> active_ptrs;
-
-// ordered map for tracking: {pointers to free allocations => bytes of freed memory}
-std::map<void*, size_t> free_ptrs;
-
-using freemap_iter = std::map<void*, size_t>::iterator;
 
 m61_memory_buffer::m61_memory_buffer() {
     /*
@@ -90,20 +100,34 @@ m61_memory_buffer::~m61_memory_buffer() {
 void* m61_find_free_space(size_t sz){
     // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
     if (sz <= default_buffer.size - default_buffer.pos) {
+        //printf("Virtual Buffer: %li\n", default_buffer.size);
+        //printf("Default Pos: %li\n", default_buffer.pos);
+        //printf("Diff: %li\n", default_buffer.size - default_buffer.pos);
         void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
-
+        //printf("loading on top of buffer\n");
         // address value returned by m61_malloc() must be evenly divisible by 16
         default_buffer.pos += sz + ALIGNMENT_PADDING;
         active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
+        // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
+        //         fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
+        //     }
         alloc_stats.active_size += sz + ALIGNMENT_PADDING;
+        alloc_stats.nactive++;
         return ptr;
     }
+
+    // just-in-time coalescing!
+    auto iter = free_ptrs.begin();
+    consolidate_free_memory_regions(iter);
+
+    //printf("entering loading into free space\n");
     // scans free_ptr map and find an available buffer zone that's less than or equal to size
     for (auto it = free_ptrs.begin(); it != free_ptrs.end(); ++it) {
         // do we consider alignment here in this conditional??
         if(sz <= it->second){
             // TODO: we dont update default_buffer.pos here
             // cause on a subsequent call to malloc() we want to consider (distance from ceiling to current pos)
+            //printf("loading into free space\n");
             void* ptr = it->first;
             free_ptrs.erase(ptr);
 
@@ -112,6 +136,11 @@ void* m61_find_free_space(size_t sz){
             return ptr;
         }
     }
+
+    alloc_stats.nfail++;
+    alloc_stats.fail_size += sz;
+    alloc_stats.ntotal--;
+    alloc_stats.total_size -= sz;
     return nullptr;
 }
 
@@ -127,16 +156,19 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     alloc_stats.ntotal++;
     alloc_stats.total_size += sz;
 
-    if (default_buffer.pos + sz > default_buffer.size || sz == SIZE_MAX) {
-        // Not enough space left in default buffer for allocation
-        alloc_stats.nfail++;
-        alloc_stats.fail_size += sz;
-        alloc_stats.ntotal--;
-        alloc_stats.total_size -= sz;
-        return nullptr;
-    }
+    // ============= DEAD CODE =============
+    // if (default_buffer.pos + sz > default_buffer.size || sz == SIZE_MAX) {
+    //     // Not enough space left in default buffer for allocation
+    //     printf("here!!\n");
+    //     alloc_stats.nfail++;
+    //     alloc_stats.fail_size += sz;
+    //     alloc_stats.ntotal--;
+    //     alloc_stats.total_size -= sz;
+    //     return nullptr;
+    // }
     // Otherwise there is enough space; claim the next `sz` bytes
-    alloc_stats.nactive++;
+    //alloc_stats.nactive++;
+    // ============= DEAD CODE =============
 
     return m61_find_free_space(sz);
 }
@@ -160,21 +192,32 @@ bool can_coalesce_up(freemap_iter it){
 }
 
 bool can_coalesce_down(freemap_iter it){
+    //printf("assertion...\n");
     assert(it != free_ptrs.end());
+    //printf("assertion passes...\n");
     
     //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
+    //printf("iterator is begin??\n");
     if(it == free_ptrs.begin()){
         return false;
     }
+    //printf("iterator not at begin...\n");
 
     auto previousBlock = it;
     previousBlock--;
     
+    //printf("previous block??...\n");
     // cannot coalesce if there's no previous entry in free_ptrs map!
     if(free_ptrs.find(previousBlock->first) == free_ptrs.end()){
         return false;
     }
-
+    // ============= DEAD CODE =============
+    //printf("there is a previous block...\n");
+    //printf("previousBlock first: %li\n", (uintptr_t) previousBlock->first);
+    //printf("previousBlock size: %li\n", previousBlock->second);
+    //printf("previousBlock first + size: %li\n", (uintptr_t) previousBlock->first + previousBlock->second);
+    //printf("current block ptr: %li\n", (uintptr_t) it->first);
+    // ============= DEAD CODE =============
     return ((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first);
 }
 
@@ -210,6 +253,23 @@ void coalesce_down(freemap_iter it){
 
 }
 
+// USE DEFERRED COALESCING TECHNIQUE
+void consolidate_free_memory_regions(freemap_iter it){
+    // downshifting iterator cursor as much as possible
+    // so we can maximally coalesce up
+    //printf("about to coalesce...");
+    while(can_coalesce_down(it)){
+        //printf("coalescing down ...\n");
+        coalesce_down(it);
+        it--; 
+    }
+
+    while(can_coalesce_up(it)){
+        //printf("coalescing up ...\n");
+        coalesce_up(it);
+    }
+}
+
 /// m61_free(ptr, file, line)
 ///    Frees the memory allocation pointed to by `ptr`. If `ptr == nullptr`,
 ///    does nothing. Otherwise, `ptr` must point to a currently active
@@ -228,24 +288,30 @@ void m61_free(void* ptr, const char* file, int line) {
         // that way, on subsequent malloc() call, we will be recycling memory
 
         // ===================================
+        auto iter = active_ptrs.find(ptr);
 
-        auto it = active_ptrs.find(ptr);
-        if(it != active_ptrs.end()){
-            free_ptrs.insert({ptr, it->second});
+        // can only free from m61_malloc() map
+        if(iter != active_ptrs.end()){
+            free_ptrs.insert({ptr, iter->second});
 
-            // downshifting iterator cursor as much as possible
-            // so we can maximally coalesce up
-            while(can_coalesce_down(it)){
-                coalesce_down(it);
-                it--; 
-            }
+            // ============= DEAD CODE =============
+            // for (auto iterat = free_ptrs.begin(); iterat != free_ptrs.end(); ++iterat) {
+            //     fprintf(stderr, "AFTR free key %li, value %li\n", (uintptr_t) iterat->first, iterat->second);
+            // }
 
-            while(can_coalesce_up(it)){
-                coalesce_up(it);
-            }
+
+            // if(!can_coalesce_down(it) || !can_coalesce_up(it)){
+            //     printf("cannot coalesce!\n");
+            //     default_buffer.pos = 0;
+            // }
+            // ============= DEAD CODE =============
+
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
             active_ptrs.erase(ptr);
-            alloc_stats.active_size -= it->second;
+            // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
+            //     fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
+            // }
+            //alloc_stats.active_size -= it->second;
         }
         // ===================================
     }
