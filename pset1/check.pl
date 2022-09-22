@@ -19,7 +19,7 @@ while ($sig_name[$SIGINT] ne "INT") {
 
 my($Red, $Redctx, $Green, $Greenctx, $Cyan, $Ylo, $Yloctx, $Off) = ("\x1b[01;31m", "\x1b[0;31m", "\x1b[01;32m", "\x1b[0;32m", "\x1b[01;36m", "\x1b[01;33m", "\x1b[0;33m", "\x1b[0m");
 $Red = $Redctx = $Green = $Greenctx = $Cyan = $Ylo = $Yloctx = $Off = "" if !-t STDERR || !-t STDOUT;
-my($ContextLines, $LeakCheck, $Make, $Test, $Exec) = (3000, 0, 0, 0, 0);
+my($ContextLines, $LeakCheck, $Make, $Test, $Exec) = (3, 0, 0, 0, 0);
 my(@Restrict, @Makeargs);
 
 $SIG{"CHLD"} = sub {};

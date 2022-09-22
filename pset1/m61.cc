@@ -326,8 +326,10 @@ void m61_free(void* ptr, const char* file, int line) {
 ///    also return `nullptr` if `count == 0` or `size == 0`.
 
 void* m61_calloc(size_t count, size_t sz, const char* file, int line) {
-    // check if result (i.e. y = a*b) is less than either of the factors which implies a wraparound occurred
-    if(sz * count < count || sz * count < sz){
+
+    // first 2 statements checks if result (i.e. y = a*b) is less than either of the factors which implies a wraparound occurred
+    // last statement checks if new allocation doesn't exceed buffer threshold
+    if((sz * count) < count || (sz * count) < sz || default_buffer.pos + (sz * count) > default_buffer.size){
         alloc_stats.nfail++;
         return nullptr;
     }
