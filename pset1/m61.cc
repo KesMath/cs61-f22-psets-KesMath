@@ -22,7 +22,7 @@ bool can_coalesce_up(freemap_iter it);
 void coalesce_down(freemap_iter it);
 bool can_coalesce_down(freemap_iter it);
 
-void consolidate_free_memory_regions(freemap_iter it);
+void consolidate_all_free_memory_regions(freemap_iter it);
 
 void* m61_find_free_space(size_t sz);
 
@@ -117,8 +117,10 @@ void* m61_find_free_space(size_t sz){
     }
 
     // just-in-time coalescing!
+    //FIXME: have to change iteration technique... all we need to do is coalesce_up() instead of downwards cause logic is going
+    // out of bounds!!!
     auto iter = free_ptrs.begin();
-    consolidate_free_memory_regions(iter);
+    consolidate_all_free_memory_regions(iter);
 
     //printf("entering loading into free space\n");
     // scans free_ptr map and find an available buffer zone that's less than or equal to size
@@ -190,36 +192,37 @@ bool can_coalesce_up(freemap_iter it){
 
     return ((uintptr_t) it->first) + it->second == (uintptr_t) nextBlock->first;
 }
-
-bool can_coalesce_down(freemap_iter it){
-    //printf("assertion...\n");
-    assert(it != free_ptrs.end());
-    //printf("assertion passes...\n");
+// ============= DEAD CODE =============
+// bool can_coalesce_down(freemap_iter it){
+//     //printf("assertion...\n");
+//     assert(it != free_ptrs.end());
+//     //printf("assertion passes...\n");
     
-    //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
-    //printf("iterator is begin??\n");
-    if(it == free_ptrs.begin()){
-        return false;
-    }
-    //printf("iterator not at begin...\n");
+//     //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
+//     //printf("iterator is begin??\n");
+//     if(it == free_ptrs.begin()){
+//         return false;
+//     }
+//     //printf("iterator not at begin...\n");
 
-    auto previousBlock = it;
-    previousBlock--;
+//     auto previousBlock = it;
+//     previousBlock--;
     
-    //printf("previous block??...\n");
-    // cannot coalesce if there's no previous entry in free_ptrs map!
-    if(free_ptrs.find(previousBlock->first) == free_ptrs.end()){
-        return false;
-    }
-    // ============= DEAD CODE =============
-    //printf("there is a previous block...\n");
-    //printf("previousBlock first: %li\n", (uintptr_t) previousBlock->first);
-    //printf("previousBlock size: %li\n", previousBlock->second);
-    //printf("previousBlock first + size: %li\n", (uintptr_t) previousBlock->first + previousBlock->second);
-    //printf("current block ptr: %li\n", (uintptr_t) it->first);
-    // ============= DEAD CODE =============
-    return ((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first);
-}
+//     //printf("previous block??...\n");
+//     // cannot coalesce if there's no previous entry in free_ptrs map!
+//     if(free_ptrs.find(previousBlock->first) == free_ptrs.end()){
+//         return false;
+//     }
+//     // ============= DEAD CODE =============
+//     //printf("there is a previous block...\n");
+//     //printf("previousBlock first: %li\n", (uintptr_t) previousBlock->first);
+//     //printf("previousBlock size: %li\n", previousBlock->second);
+//     //printf("previousBlock first + size: %li\n", (uintptr_t) previousBlock->first + previousBlock->second);
+//     //printf("current block ptr: %li\n", (uintptr_t) it->first);
+//     // ============= DEAD CODE =============
+//     return ((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first);
+// }
+// ============= DEAD CODE =============
 
 void coalesce_up(freemap_iter it){
     if(can_coalesce_up(it)){
@@ -236,36 +239,46 @@ void coalesce_up(freemap_iter it){
     }
 
 }
-
-void coalesce_down(freemap_iter it){
-    if(can_coalesce_down(it)){
-        auto previous = it;
-        previous--;
-        // consolidate free blocks by adding current value's memory allocation to previous block
-        previous->second += it->second;
+// ============= DEAD CODE =============
+// void coalesce_down(freemap_iter it){
+//     if(can_coalesce_down(it)){
+//         auto previous = it;
+//         previous--;
+//         // consolidate free blocks by adding current value's memory allocation to previous block
+//         previous->second += it->second;
         
-        // update free ptrs map to contain consolidated buffer
-        free_ptrs.insert_or_assign(previous->first, previous->second);
+//         // update free ptrs map to contain consolidated buffer
+//         free_ptrs.insert_or_assign(previous->first, previous->second);
 
-        // erasing stale pointer
-        free_ptrs.erase(it->first);
-    }
+//         // erasing stale pointer
+//         free_ptrs.erase(it->first);
+//     }
 
-}
+// }
+// ============= DEAD CODE =============
 
-// USE DEFERRED COALESCING TECHNIQUE
-void consolidate_free_memory_regions(freemap_iter it){
+// DEFERRED COALESCING TECHNIQUE
+void consolidate_all_free_memory_regions(freemap_iter it){
     // downshifting iterator cursor as much as possible
     // so we can maximally coalesce up
     //printf("about to coalesce...");
-    while(can_coalesce_down(it)){
-        //printf("coalescing down ...\n");
-        coalesce_down(it);
-        it--; 
-    }
+    // while(can_coalesce_down(it)){
+    //     //printf("coalescing down ...\n");
+    //     coalesce_down(it);
+    //     it--; 
+    // }
 
-    while(can_coalesce_up(it)){
-        //printf("coalescing up ...\n");
+    // FAULTY!! I believe as soon as it cannot coalesce_up, it returns false
+    // while where can be free regions of memory to consolidate after that block that returned false!!!
+    // while((can_coalesce_up(it)) && (it != free_ptrs.end())){
+    //     //printf("coalescing up ...\n");
+    //     coalesce_up(it);
+    //     it++;
+    // }
+
+    // PRESUMABLY BETTER!! ITerator goes through all of the free elements in the map and performs consolidation
+    // if it cannot, it simply skips that over and goes to next ... it doesn't short circuit like while loop
+    for (; it != free_ptrs.end(); it++) {
         coalesce_up(it);
     }
 }
