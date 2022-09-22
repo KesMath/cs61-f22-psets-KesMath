@@ -280,7 +280,10 @@ void m61_free(void* ptr, const char* file, int line) {
     // avoid uninitialized variable warnings
     (void) ptr, (void) file, (void) line;
     if(ptr != nullptr){
-        alloc_stats.nactive--;
+        // prevent integer wraparound
+        if(alloc_stats.nactive != 0){
+            alloc_stats.nactive--;
+        }
         // how do we go about freeing ptr so that all memory in virtual buffer is not consumed??
         // "RE-RENT" or allow another pointer to occupy that space (even though garbage values from previous ptr may persist)
         // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
@@ -326,7 +329,6 @@ void m61_free(void* ptr, const char* file, int line) {
 ///    also return `nullptr` if `count == 0` or `size == 0`.
 
 void* m61_calloc(size_t count, size_t sz, const char* file, int line) {
-
     // first 2 statements checks if result (i.e. y = a*b) is less than either of the factors which implies a wraparound occurred
     // last statement checks if new allocation doesn't exceed buffer threshold
     if((sz * count) < count || (sz * count) < sz || default_buffer.pos + (sz * count) > default_buffer.size){
