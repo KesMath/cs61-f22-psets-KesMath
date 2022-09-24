@@ -99,6 +99,7 @@ m61_memory_buffer::~m61_memory_buffer() {
 // otherwise, checks free regions of memory
 void* m61_find_free_space(size_t sz){
     // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
+    //FIXME: default_buffer.pos + sz <= def.size
     if (sz <= default_buffer.size - default_buffer.pos) {
         //printf("Virtual Buffer: %li\n", default_buffer.size);
         //printf("Default Pos: %li\n", default_buffer.pos);
@@ -111,7 +112,8 @@ void* m61_find_free_space(size_t sz){
         // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
         //         fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
         //     }
-        alloc_stats.active_size += sz + ALIGNMENT_PADDING;
+        //printf("incrementing active size: %li by sz %li\n", alloc_stats.active_size, sz);
+        alloc_stats.active_size += sz;
         alloc_stats.nactive++;
         return ptr;
     }
@@ -133,8 +135,9 @@ void* m61_find_free_space(size_t sz){
             void* ptr = it->first;
             free_ptrs.erase(ptr);
 
-            active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
-            alloc_stats.active_size += sz + ALIGNMENT_PADDING;
+            active_ptrs.insert({ptr, sz});
+            //printf("incrementing active size: %li by sz %li\n", alloc_stats.active_size, sz);
+            alloc_stats.active_size += sz;
             return ptr;
         }
     }
@@ -309,6 +312,8 @@ void m61_free(void* ptr, const char* file, int line) {
         // can only free from m61_malloc() map
         if(iter != active_ptrs.end()){
             free_ptrs.insert({ptr, iter->second});
+            //FIXME: try different approach 
+            default_buffer.pos -= iter->second;
 
             // ============= DEAD CODE =============
             // for (auto iterat = free_ptrs.begin(); iterat != free_ptrs.end(); ++iterat) {
@@ -323,11 +328,12 @@ void m61_free(void* ptr, const char* file, int line) {
             // ============= DEAD CODE =============
 
             //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
+            //printf("decreenting active size: %li by sz %li\n", alloc_stats.active_size, iter->second);
+            alloc_stats.active_size -= iter->second;
             active_ptrs.erase(ptr);
             // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
             //     fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
             // }
-            //alloc_stats.active_size -= it->second;
         }
         // ===================================
     }
