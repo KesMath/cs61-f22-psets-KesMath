@@ -13,4 +13,4 @@ None
 
 Citations
 ---------
-(List any other sources consulted.)
+N/A
