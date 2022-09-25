@@ -50,18 +50,15 @@ static m61_statistics alloc_stats = {
     .heap_max = 0
 };
 
-uint8_t ALIGNMENT_PADDING = 8;
 
-// uintptr_t getPadding(void* ptr, size_t sz){
-//     size_t padding = 0;
-//     //printf("(uintptr_t) ptr: %li\n",(uintptr_t) ptr);
-//     if(((uintptr_t) ptr + sz) % 16 != 0){
-//         padding = 16 - ((uintptr_t) ptr % 16);
-//     }
-//     //printf("padding: %li\n", padding);
-//     //printf("align of: %li\n", alignof(std::max_align_t));
-//     return padding;
-// }
+int get_padding(void* ptr, size_t sz){
+    size_t padding = 0;
+    if(((uintptr_t) ptr + sz) % 16 != 0){
+        padding = 16 - (((uintptr_t) ptr + sz) % 16);
+    }
+    //printf("padding : %li\n", padding);
+    return padding;
+}
 
 m61_memory_buffer::m61_memory_buffer() {
     /*
@@ -99,16 +96,18 @@ m61_memory_buffer::~m61_memory_buffer() {
 // otherwise, checks free regions of memory
 void* m61_find_free_space(size_t sz){
     // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
-    //FIXME: default_buffer.pos + sz <= def.size
+    //FIXME: default_buffer.pos + sz <= def.size cause integer overflow can occur if default_buffer.pos > other term
     if (sz <= default_buffer.size - default_buffer.pos) {
         //printf("Virtual Buffer: %li\n", default_buffer.size);
         //printf("Default Pos: %li\n", default_buffer.pos);
         //printf("Diff: %li\n", default_buffer.size - default_buffer.pos);
         void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
         //printf("loading on top of buffer\n");
+        
         // address value returned by m61_malloc() must be evenly divisible by 16
-        default_buffer.pos += sz + ALIGNMENT_PADDING;
-        active_ptrs.insert({ptr, sz + ALIGNMENT_PADDING});
+        int padding = get_padding(ptr, sz);
+        default_buffer.pos += sz + padding;
+        active_ptrs.insert({ptr, sz});
         // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
         //         fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
         //     }
@@ -119,8 +118,6 @@ void* m61_find_free_space(size_t sz){
     }
 
     // just-in-time coalescing!
-    //FIXME: have to change iteration technique... all we need to do is coalesce_up() instead of downwards cause logic is going
-    // out of bounds!!!
     auto iter = free_ptrs.begin();
     consolidate_all_free_memory_regions(iter);
 
@@ -311,8 +308,8 @@ void m61_free(void* ptr, const char* file, int line) {
 
         // can only free from m61_malloc() map
         if(iter != active_ptrs.end()){
+            // FIXME: consider padding too!
             free_ptrs.insert({ptr, iter->second});
-            //FIXME: try different approach 
             default_buffer.pos -= iter->second;
 
             // ============= DEAD CODE =============
