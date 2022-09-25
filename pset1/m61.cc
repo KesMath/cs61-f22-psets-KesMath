@@ -18,12 +18,7 @@ using freemap_iter = std::map<void*, size_t>::iterator;
 
 void coalesce_up(freemap_iter it);
 bool can_coalesce_up(freemap_iter it);
-
-void coalesce_down(freemap_iter it);
-bool can_coalesce_down(freemap_iter it);
-
 void consolidate_all_free_memory_regions(freemap_iter it);
-
 void* m61_find_free_space(size_t sz);
 
 struct m61_memory_buffer {
@@ -158,20 +153,6 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     alloc_stats.ntotal++;
     alloc_stats.total_size += sz;
 
-    // ============= DEAD CODE =============
-    // if (default_buffer.pos + sz > default_buffer.size || sz == SIZE_MAX) {
-    //     // Not enough space left in default buffer for allocation
-    //     printf("here!!\n");
-    //     alloc_stats.nfail++;
-    //     alloc_stats.fail_size += sz;
-    //     alloc_stats.ntotal--;
-    //     alloc_stats.total_size -= sz;
-    //     return nullptr;
-    // }
-    // Otherwise there is enough space; claim the next `sz` bytes
-    //alloc_stats.nactive++;
-    // ============= DEAD CODE =============
-
     return m61_find_free_space(sz);
 }
 
@@ -192,37 +173,6 @@ bool can_coalesce_up(freemap_iter it){
 
     return ((uintptr_t) it->first) + it->second == (uintptr_t) nextBlock->first;
 }
-// ============= DEAD CODE =============
-// bool can_coalesce_down(freemap_iter it){
-//     //printf("assertion...\n");
-//     assert(it != free_ptrs.end());
-//     //printf("assertion passes...\n");
-    
-//     //if current iterator is at begin, we cannot coalesce downwards cause there's no element before!
-//     //printf("iterator is begin??\n");
-//     if(it == free_ptrs.begin()){
-//         return false;
-//     }
-//     //printf("iterator not at begin...\n");
-
-//     auto previousBlock = it;
-//     previousBlock--;
-    
-//     //printf("previous block??...\n");
-//     // cannot coalesce if there's no previous entry in free_ptrs map!
-//     if(free_ptrs.find(previousBlock->first) == free_ptrs.end()){
-//         return false;
-//     }
-//     // ============= DEAD CODE =============
-//     //printf("there is a previous block...\n");
-//     //printf("previousBlock first: %li\n", (uintptr_t) previousBlock->first);
-//     //printf("previousBlock size: %li\n", previousBlock->second);
-//     //printf("previousBlock first + size: %li\n", (uintptr_t) previousBlock->first + previousBlock->second);
-//     //printf("current block ptr: %li\n", (uintptr_t) it->first);
-//     // ============= DEAD CODE =============
-//     return ((uintptr_t) previousBlock->first + previousBlock->second == (uintptr_t) it->first);
-// }
-// ============= DEAD CODE =============
 
 void coalesce_up(freemap_iter it){
     if(can_coalesce_up(it)){
@@ -239,45 +189,13 @@ void coalesce_up(freemap_iter it){
     }
 
 }
-// ============= DEAD CODE =============
-// void coalesce_down(freemap_iter it){
-//     if(can_coalesce_down(it)){
-//         auto previous = it;
-//         previous--;
-//         // consolidate free blocks by adding current value's memory allocation to previous block
-//         previous->second += it->second;
-        
-//         // update free ptrs map to contain consolidated buffer
-//         free_ptrs.insert_or_assign(previous->first, previous->second);
-
-//         // erasing stale pointer
-//         free_ptrs.erase(it->first);
-//     }
-
-// }
-// ============= DEAD CODE =============
 
 // DEFERRED COALESCING TECHNIQUE
 void consolidate_all_free_memory_regions(freemap_iter it){
-    // downshifting iterator cursor as much as possible
-    // so we can maximally coalesce up
-    //printf("about to coalesce...");
-    // while(can_coalesce_down(it)){
-    //     //printf("coalescing down ...\n");
-    //     coalesce_down(it);
-    //     it--; 
-    // }
 
-    // FAULTY!! I believe as soon as it cannot coalesce_up, it returns false
-    // while where can be free regions of memory to consolidate after that block that returned false!!!
-    // while((can_coalesce_up(it)) && (it != free_ptrs.end())){
-    //     //printf("coalescing up ...\n");
-    //     coalesce_up(it);
-    //     it++;
-    // }
-
-    // PRESUMABLY BETTER!! ITerator goes through all of the free elements in the map and performs consolidation
-    // if it cannot, it simply skips that over and goes to next ... it doesn't short circuit like while loop
+    // DECENT BETTER!! Iterator goes through all of the free elements in the map and performs consolidation
+    // if it cannot, it simply skips that over and goes to next ... it doesn't short circuit prematurely 
+    // if an adjacent free block cannot coalesce!!
     for (; it != free_ptrs.end(); it++) {
         coalesce_up(it);
     }
@@ -297,12 +215,6 @@ void m61_free(void* ptr, const char* file, int line) {
         if(alloc_stats.nactive != 0){
             alloc_stats.nactive--;
         }
-        // how do we go about freeing ptr so that all memory in virtual buffer is not consumed??
-        // "RE-RENT" or allow another pointer to occupy that space (even though garbage values from previous ptr may persist)
-        // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
-        // hit our ceiling in this virtual buffer (which is heap_max or default_buffer.size)
-        // that way, on subsequent malloc() call, we will be recycling memory
-        // ===================================
         auto iter = active_ptrs.find(ptr);
 
         // can only free from m61_malloc() map
@@ -311,20 +223,6 @@ void m61_free(void* ptr, const char* file, int line) {
             free_ptrs.insert({ptr, iter->second});
             default_buffer.pos -= iter->second;
 
-            // ============= DEAD CODE =============
-            // for (auto iterat = free_ptrs.begin(); iterat != free_ptrs.end(); ++iterat) {
-            //     fprintf(stderr, "AFTR free key %li, value %li\n", (uintptr_t) iterat->first, iterat->second);
-            // }
-
-
-            // if(!can_coalesce_down(it) || !can_coalesce_up(it)){
-            //     printf("cannot coalesce!\n");
-            //     default_buffer.pos = 0;
-            // }
-            // ============= DEAD CODE =============
-
-            //tracking which pointers are free so that malloc() can recycle if subsequent allocation can fit
-            //printf("decreenting active size: %li by sz %li\n", alloc_stats.active_size, iter->second);
             alloc_stats.active_size -= iter->second;
             active_ptrs.erase(ptr);
         }
