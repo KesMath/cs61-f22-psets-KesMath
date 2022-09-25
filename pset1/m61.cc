@@ -328,16 +328,16 @@ void m61_free(void* ptr, const char* file, int line) {
             alloc_stats.active_size -= iter->second;
             active_ptrs.erase(ptr);
         }
-        // else{
-        //     //double free detection... causing previous test cases to fail so commenting out
-        //     if(free_ptrs.find(ptr) != free_ptrs.end()){
-        //         fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, double free\n", file, line, ptr);
-        //     }
-        //     else{
-        //        fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, not in heap\n", file, line, ptr); 
-        //     }
-        //     abort();
-        // }
+        else{
+            //double free detection... causing previous test cases to fail so commenting out
+            if(free_ptrs.find(ptr) != free_ptrs.end()){
+                fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, double free\n", file, line, ptr);
+            }
+            else{
+               fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, not in heap\n", file, line, ptr); 
+            }
+            abort();
+        }
         // ===================================
     }
 }
