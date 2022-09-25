@@ -103,7 +103,7 @@ void* m61_find_free_space(size_t sz){
         //printf("Diff: %li\n", default_buffer.size - default_buffer.pos);
         void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
         //printf("loading on top of buffer\n");
-        
+
         // address value returned by m61_malloc() must be evenly divisible by 16
         int padding = get_padding(ptr, sz);
         default_buffer.pos += sz + padding;
@@ -302,7 +302,6 @@ void m61_free(void* ptr, const char* file, int line) {
         // (1) We're going to subtract current, default_buffer.pos by previous ptr->pos so we never 
         // hit our ceiling in this virtual buffer (which is heap_max or default_buffer.size)
         // that way, on subsequent malloc() call, we will be recycling memory
-
         // ===================================
         auto iter = active_ptrs.find(ptr);
 
@@ -328,10 +327,17 @@ void m61_free(void* ptr, const char* file, int line) {
             //printf("decreenting active size: %li by sz %li\n", alloc_stats.active_size, iter->second);
             alloc_stats.active_size -= iter->second;
             active_ptrs.erase(ptr);
-            // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
-            //     fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
-            // }
         }
+        // else{
+        //     //double free detection... causing previous test cases to fail so commenting out
+        //     if(free_ptrs.find(ptr) != free_ptrs.end()){
+        //         fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, double free\n", file, line, ptr);
+        //     }
+        //     else{
+        //        fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, not in heap\n", file, line, ptr); 
+        //     }
+        //     abort();
+        // }
         // ===================================
     }
 }
