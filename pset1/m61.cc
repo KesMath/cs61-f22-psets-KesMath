@@ -51,7 +51,6 @@ int get_padding(void* ptr, size_t sz){
     if(((uintptr_t) ptr + sz) % 16 != 0){
         padding = 16 - (((uintptr_t) ptr + sz) % 16);
     }
-    //printf("padding : %li\n", padding);
     return padding;
 }
 
@@ -72,13 +71,8 @@ m61_memory_buffer::m61_memory_buffer() {
     this->buffer = (char*) buf;
     //printf("Buffer pointer %li\n", (uintptr_t) this->buffer); 
 
-    // according to diagram 838 in textbook, I assume the smallest address is the value
-    // that's returned by mmap() sys call and largest address of that virtual memory block
-    // is that address returned from mmap() + the size
     alloc_stats.heap_min = (uintptr_t) buf;
     alloc_stats.heap_max = (uintptr_t) buf + this->size;
-    //printf("HEAP MIN: %li\n", alloc_stats.heap_min);
-    //printf("HEAP MAX: %li\n", alloc_stats.heap_max);
 }
 
 m61_memory_buffer::~m61_memory_buffer() {
@@ -91,22 +85,15 @@ m61_memory_buffer::~m61_memory_buffer() {
 // otherwise, checks free regions of memory
 void* m61_find_free_space(size_t sz){
     // try default_buffer (i.e. check distance or space from current buffer.pos heap_max or ceiling)
-    //FIXME: default_buffer.pos + sz <= def.size cause integer overflow can occur if default_buffer.pos > other term
     if (sz <= default_buffer.size - default_buffer.pos) {
-        //printf("Virtual Buffer: %li\n", default_buffer.size);
-        //printf("Default Pos: %li\n", default_buffer.pos);
-        //printf("Diff: %li\n", default_buffer.size - default_buffer.pos);
+
         void* ptr = &default_buffer.buffer[default_buffer.pos]; //getting pointer at 0th position in 8 MiB buffer block or essentially heap_min
-        //printf("loading on top of buffer\n");
 
         // address value returned by m61_malloc() must be evenly divisible by 16
         int padding = get_padding(ptr, sz);
         default_buffer.pos += sz + padding;
         active_ptrs.insert({ptr, sz});
-        // for (auto iter = active_ptrs.begin(); iter != active_ptrs.end(); ++iter) {
-        //         fprintf(stderr, "active key %li, value %li\n", (uintptr_t) iter->first, iter->second);
-        //     }
-        //printf("incrementing active size: %li by sz %li\n", alloc_stats.active_size, sz);
+
         alloc_stats.active_size += sz;
         alloc_stats.nactive++;
         return ptr;
@@ -116,19 +103,13 @@ void* m61_find_free_space(size_t sz){
     auto iter = free_ptrs.begin();
     consolidate_all_free_memory_regions(iter);
 
-    //printf("entering loading into free space\n");
     // scans free_ptr map and find an available buffer zone that's less than or equal to size
     for (auto it = free_ptrs.begin(); it != free_ptrs.end(); ++it) {
-        // do we consider alignment here in this conditional??
         if(sz <= it->second){
-            // TODO: we dont update default_buffer.pos here
-            // cause on a subsequent call to malloc() we want to consider (distance from ceiling to current pos)
-            //printf("loading into free space\n");
             void* ptr = it->first;
             free_ptrs.erase(ptr);
 
             active_ptrs.insert({ptr, sz});
-            //printf("incrementing active size: %li by sz %li\n", alloc_stats.active_size, sz);
             alloc_stats.active_size += sz;
             return ptr;
         }
@@ -228,16 +209,13 @@ void m61_free(void* ptr, const char* file, int line) {
         }
         else{
             //double free detection... causing previous test cases to fail so commenting out
-            // 33 of 54 test cases passed with lines 334-341 commented out
-            // 37 of 54 test cases passes with lines 334-341 active ... which one serves as best grading potential
-            // given that some of my test cases in phase 2 fails while phase 3 test cases pass
-            // if(free_ptrs.find(ptr) != free_ptrs.end()){
-            //     fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, double free\n", file, line, ptr);
-            // }
-            // else{
-            //    fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, not in heap\n", file, line, ptr); 
-            // }
-            // abort();
+            if(free_ptrs.find(ptr) != free_ptrs.end()){
+                fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, double free\n", file, line, ptr);
+            }
+            else{
+               fprintf(stderr, "MEMORY BUG %s:%i: invalid free of pointer %p, not in heap\n", file, line, ptr); 
+            }
+            abort();
         }
         // ===================================
     }
