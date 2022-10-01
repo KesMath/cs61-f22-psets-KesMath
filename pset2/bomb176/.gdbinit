@@ -16,6 +16,5 @@ b calc6_expr
 b calc6_factor
 b calc6_term
 b init_driver
-b submit
 b explode_bomb
 b blank_line
